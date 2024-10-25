@@ -13,6 +13,7 @@ class Proxy:
     def __init__(self) -> None:
         self.username = 'username'
         self.password = 'password'
+        self.logger = logging.getLogger('Proxy')
 
     def handle_client(self, connection, client_addr):
         # greeting header
@@ -23,40 +24,40 @@ class Proxy:
         #          | 1  |    1     | 1 to 255 |
         #          +----+----------+----------+
         version, nmethods = connection.recv(2)
-        logging.info(f'Greeting from client version->{version} nmethods->{nmethods}')
+        self.logger.info(f'Greeting from client version->{version} nmethods->{nmethods}')
 
         # get available methods [0, 1, 2]
         methods = [ord(connection.recv(1)) for _ in range(nmethods)]
-        logging.info(f'Greeting methods->{set(methods)}')
+        self.logger.info(f'Greeting methods->{set(methods)}')
 
         # accept only USERNAME/PASSWORD auth
         if 2 not in set(methods):
             # clone connection
-            logging.info(f'Client not support Username/Password method, terminate!')
+            self.logger.info(f'Client not support Username/Password method, terminate!')
             connection.close()
             return
 
         # send welcome message
         connection.sendall(bytes([SOCKS_VERSION, 2]))
-        logging.info(f'Server Greeting back to client')
+        self.logger.info(f'Server Greeting back to client')
 
         # verify Username/Password
         if not self.verify_credentials(connection):
-            logging.info(f'Credential verify failed')
+            self.logger.info(f'Credential verify failed')
             return
 
         # request (version = 5)
         version, cmd, _, address_type = connection.recv(4)
-        logging.info(f'Debug: address_type {address_type}')
+        self.logger.info(f'Debug: address_type {address_type}')
 
         if address_type == 1:  # IPV4
             address = socket.inet_ntoa(connection.recv(4))
         elif address_type == 3:  # Domain name
             domain_length = connection.recv(1)[0]
             address = connection.recv(domain_length)
-            logging.info(f'Debug: {domain_length} -> {address}')
+            self.logger.info(f'Debug: {domain_length} -> {address}')
             address = socket.gethostbyname(address)
-            logging.info(f'Debug address after gethostbyname {address}')
+            self.logger.info(f'Debug address after gethostbyname {address}')
 
         # convert bytes to unsigned short array
         port = int.from_bytes(connection.recv(2), 'big', signed=False)
@@ -66,7 +67,7 @@ class Proxy:
                 remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 remote.connect((address, port))
                 bind_address = remote.getsockname()
-                logging.info(f'* Connected to {address} {port}')
+                self.logger.info(f'* Connected to {address} {port}')
             else:
                 connection.close()
 
@@ -82,7 +83,7 @@ class Proxy:
                 port.to_bytes(2,'big')
             ])
         except Exception as e:
-            logging.info(traceback.format_exc())
+            self.logger.info(traceback.format_exc())
 
             reply = self.generate_failed_reply(address_type, 5)
 
@@ -93,7 +94,7 @@ class Proxy:
             self.exchange_loop(connection, remote)
 
         connection.close()
-        logging.info(f'connection closed {client_addr}')
+        self.logger.info(f'connection closed {client_addr}')
 
     def verify_credentials(self, connection):
         version = ord(connection.recv(1))  # should be 1
@@ -133,12 +134,20 @@ class Proxy:
 
             if client in r:
                 data = client.recv(4096)
-                if remote.send(data) <= 0:
+                self.logger.info(f'Read {len(data)} bytes from client')
+
+                sent_size = remote.send(data)
+                self.logger.info(f'Sent {sent_size} bytes to remote')
+                if sent_size <= 0:
                     break
 
             if remote in r:
                 data = remote.recv(4096)
-                if client.send(data) <= 0:
+                self.logger.info(f'Read {len(data)} bytes from remote')
+
+                sent_size = client.send(data)
+                self.logger.info(f'Sent {sent_size} bytes to client')
+                if sent_size <= 0:
                     break
 
     def run(self, host, port):
@@ -146,11 +155,11 @@ class Proxy:
         s.bind((host, port))
         s.listen()
 
-        logging.info(f'* Socks5 proxy server is running on {host}:{port}')
+        self.logger.info(f'* Socks5 proxy server is running on {host}:{port}')
 
         while True:
             conn, addr = s.accept()
-            logging.info(f'* new connection from {addr}')
+            self.logger.info(f'* new connection from {addr}')
             t = threading.Thread(target=self.handle_client, args=(conn, addr))
             t.start()
 
