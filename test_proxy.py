@@ -44,6 +44,16 @@ async def test_httpsgoogle():
     connector = ProxyConnector.from_url(PROXY_ADDR)
 
     async with aiohttp.ClientSession(connector=connector) as session:
-        async with session.get(url) as resp:
-            assert resp.status == 200
+        async with session.get(url, allow_redirects=False) as resp:
+            assert resp.status == 301
+            print(await resp.text())
+
+@pytest.mark.asyncio
+async def test_httpsbaidu():
+    url = 'https://baidu.com'
+    connector = ProxyConnector.from_url(PROXY_ADDR)
+
+    async with aiohttp.ClientSession(connector=connector) as session:
+        async with session.get(url, allow_redirects=False) as resp:
+            assert resp.status == 302
             print(await resp.text())

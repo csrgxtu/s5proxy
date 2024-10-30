@@ -133,6 +133,8 @@ class Proxy:
         while True:
             # wait until client or remote is available for read
             r, w, e = select.select([client, remote], [], [])
+            if e:
+                self.logger.info(f'Exceptions: {e}')
 
             if client in r:
                 data = client.recv(4096)
@@ -149,8 +151,8 @@ class Proxy:
 
                 sent_size = client.send(data)
                 self.logger.info(f'Sent {sent_size} bytes to client')
-                # if sent_size <= 0:
-                #     break
+                if sent_size <= 0:
+                    break
 
     def run(self, host, port):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
