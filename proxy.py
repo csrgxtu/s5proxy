@@ -90,6 +90,7 @@ class Proxy:
         connection.sendall(reply)
 
         # establish data exchange
+        self.logger.info(f'reply[1]: {reply[1]} cmd: {cmd}')
         if reply[1] == 0 and cmd == 1:
             self.exchange_loop(connection, remote)
 
