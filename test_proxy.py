@@ -1,5 +1,6 @@
 import pytest
 import aiohttp
+import requests
 from aiohttp_socks import ProxyType, ProxyConnector, ChainProxyConnector
 
 
@@ -37,6 +38,14 @@ async def test_httpsgist():
             assert resp.status == 200
             assert len(await resp.text()) > 0
             # print(await resp.text())
+
+def test_httpsgoogle_sync():
+    url = 'https://google.com'
+
+    resp = requests.get(url, proxies=dict(http=PROXY_ADDR, https=PROXY_ADDR))
+    assert resp.status_code == 200
+    print(resp.text)
+
 
 @pytest.mark.asyncio
 async def test_httpsgoogle():
