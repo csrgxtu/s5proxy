@@ -80,7 +80,7 @@ class Proxy:
 
             addr = int.from_bytes(socket.inet_aton(bind_address[0]), 'big', signed=False)
             port = bind_address[1]
-            self.logger.info(f'Remote Sock {addr}:{port}')
+            self.logger.info(f'Proxy Sock {bind_address[0]}:{port}')
 
             reply = b''.join([
                 SOCKS_VERSION.to_bytes(1, 'big'),
