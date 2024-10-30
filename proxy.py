@@ -51,7 +51,11 @@ class Proxy:
         self.logger.info(f'Debug: address_type {address_type}')
 
         if address_type == 1:  # IPV4
-            address = socket.inet_ntoa(connection.recv(4))
+            data = connection.recv(4)
+            address = socket.inet_ntoa(data)
+            self.logger.info(f'IPV4 data to Target Address {data} -> {address}')
+            address = '142.250.69.206'
+            address = '108.177.125.139'
         elif address_type == 3:  # Domain name
             domain_length = connection.recv(1)[0]
             address = connection.recv(domain_length)
@@ -61,7 +65,9 @@ class Proxy:
 
         # convert bytes to unsigned short array
         port = int.from_bytes(connection.recv(2), 'big', signed=False)
+        self.logger.info(f'Target Port {port}')
 
+        self.logger.info(f'CMD: {cmd}')
         try:
             if cmd == 1:  # CONNECT
                 remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -137,25 +143,42 @@ class Proxy:
                 self.logger.info(f'Exceptions: {e}')
 
             if client in r:
-                data = client.recv(4096)
-                self.logger.info(f'Read {len(data)} bytes from client')
+                try:
+                    data = client.recv(4096)
+                    self.logger.info(f'Read {len(data)} bytes from client')
+                except ConnectionResetError as ex:
+                    self.logger.error(f'Client connection reseted: {ex}')
+                    break
 
-                sent_size = remote.send(data)
-                self.logger.info(f'Sent {sent_size} bytes to remote')
-                if sent_size <= 0:
+                try:
+                    sent_size = remote.send(data)
+                    self.logger.info(f'Sent {sent_size} bytes to remote')
+                    if sent_size <= 0:
+                        break
+                except ConnectionResetError as ex:
+                    self.logger.error(f'Remote connection reseted {ex}')
                     break
 
             if remote in r:
-                data = remote.recv(4096)
-                self.logger.info(f'Read {len(data)} bytes from remote')
+                try:
+                    data = remote.recv(4096)
+                    self.logger.info(f'Read {len(data)} bytes from remote')
+                except ConnectionResetError as ex:
+                    self.logger.error(f'Remote connection reseted {ex}')
+                    break
 
-                sent_size = client.send(data)
-                self.logger.info(f'Sent {sent_size} bytes to client')
-                if sent_size <= 0:
+                try:
+                    sent_size = client.send(data)
+                    self.logger.info(f'Sent {sent_size} bytes to client')
+                    if sent_size <= 0:
+                        break
+                except ConnectionResetError as ex:
+                    self.logger.error(f"Client connection reseted {ex}")
                     break
 
     def run(self, host, port):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((host, port))
         s.listen()
 
