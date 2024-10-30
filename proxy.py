@@ -94,6 +94,7 @@ class Proxy:
         if reply[1] == 0 and cmd == 1:
             self.exchange_loop(connection, remote)
 
+        remote.close()
         connection.close()
         self.logger.info(f'connection closed {client_addr}')
 
@@ -148,8 +149,8 @@ class Proxy:
 
                 sent_size = client.send(data)
                 self.logger.info(f'Sent {sent_size} bytes to client')
-                if sent_size <= 0:
-                    break
+                # if sent_size <= 0:
+                #     break
 
     def run(self, host, port):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
