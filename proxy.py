@@ -54,14 +54,15 @@ class Proxy:
             data = connection.recv(4)
             address = socket.inet_ntoa(data)
             self.logger.info(f'IPV4 data to Target Address {data} -> {address}')
-            address = '142.250.69.206'
+            # address = '142.250.69.206'
             address = '108.177.125.139'
         elif address_type == 3:  # Domain name
             domain_length = connection.recv(1)[0]
             address = connection.recv(domain_length)
             self.logger.info(f'Debug: {domain_length} -> {address}')
             address = socket.gethostbyname(address)
-            self.logger.info(f'Debug address after gethostbyname {address}')
+            self.logger.info(f'DomainName to Target Address {address}')
+            address = '108.177.125.139'
 
         # convert bytes to unsigned short array
         port = int.from_bytes(connection.recv(2), 'big', signed=False)
@@ -73,12 +74,13 @@ class Proxy:
                 remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 remote.connect((address, port))
                 bind_address = remote.getsockname()
-                self.logger.info(f'* Connected to {address} {port}')
+                self.logger.info(f'Connected to {address} {port}')
             else:
                 connection.close()
 
             addr = int.from_bytes(socket.inet_aton(bind_address[0]), 'big', signed=False)
             port = bind_address[1]
+            self.logger.info(f'Remote Sock {addr}:{port}')
 
             reply = b''.join([
                 SOCKS_VERSION.to_bytes(1, 'big'),
@@ -182,7 +184,7 @@ class Proxy:
         s.bind((host, port))
         s.listen()
 
-        self.logger.info(f'* Socks5 proxy server is running on {host}:{port}')
+        self.logger.info(f'Socks5 proxy server is running on {host}:{port}')
 
         while True:
             conn, addr = s.accept()
