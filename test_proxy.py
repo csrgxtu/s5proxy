@@ -2,7 +2,7 @@ import requests
 
 
 # PROXY_ADDR = 'socks5://username:password@localhost:3000'
-PROXY_ADDR = 'socks5://username:password@43.153.3.156:3000'
+PROXY_ADDR = 'socks5h://username:password@43.153.3.156:3000'
 
 
 def test_httpbin():
@@ -30,7 +30,7 @@ def test_httpsgist():
 
 
 def test_httpsgoogle():
-    url = 'https://google.com'
+    url = 'https://www.google.com'
 
     resp = requests.get(url, proxies=dict(http=PROXY_ADDR, https=PROXY_ADDR))
     assert resp.status_code == 200
