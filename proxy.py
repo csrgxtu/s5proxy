@@ -60,8 +60,12 @@ class Proxy:
             domain_length = connection.recv(1)[0]
             address = connection.recv(domain_length)
             self.logger.info(f'Debug: {domain_length} -> {address}')
-            address = socket.gethostbyname(address)
-            self.logger.info(f'DomainName to Target Address {address}')
+            if address == 'connectivitycheck.gstatic.com':
+                address = '108.177.125.139'
+                self.logger.info('connective check, set address to {address}')
+            else:
+                address = socket.gethostbyname(address)
+                self.logger.info(f'DomainName to Target Address {address}')
             # address = '108.177.125.139'
 
         # convert bytes to unsigned short array
