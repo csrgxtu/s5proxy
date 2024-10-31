@@ -55,14 +55,14 @@ class Proxy:
             address = socket.inet_ntoa(data)
             self.logger.info(f'IPV4 data to Target Address {data} -> {address}')
             # address = '142.250.69.206'
-            address = '108.177.125.139'
+            # address = '108.177.125.139'
         elif address_type == 3:  # Domain name
             domain_length = connection.recv(1)[0]
             address = connection.recv(domain_length)
             self.logger.info(f'Debug: {domain_length} -> {address}')
             address = socket.gethostbyname(address)
             self.logger.info(f'DomainName to Target Address {address}')
-            address = '108.177.125.139'
+            # address = '108.177.125.139'
 
         # convert bytes to unsigned short array
         port = int.from_bytes(connection.recv(2), 'big', signed=False)
