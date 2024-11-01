@@ -3,6 +3,7 @@ import threading
 import select
 import traceback
 import logging
+import uuid
 
 
 logging.basicConfig(level=logging.DEBUG)
@@ -16,75 +17,74 @@ class Proxy:
         self.logger = logging.getLogger('Proxy')
 
     def handle_client(self, connection, client_addr):
+        trace_id = str(uuid.uuid4())
         # greeting header
-        # read and unpack 2 bytes from a client
-        #          +----+----------+----------+
-        #          |VER | NMETHODS | METHODS  |
-        #          +----+----------+----------+
-        #          | 1  |    1     | 1 to 255 |
-        #          +----+----------+----------+
         version, nmethods = connection.recv(2)
-        self.logger.info(f'Greeting from client version->{version} nmethods->{nmethods}')
+        self.logger.info(f'{trace_id} Greeting from client version->{version} nmethods->{nmethods}')
 
         # get available methods [0, 1, 2]
         methods = [ord(connection.recv(1)) for _ in range(nmethods)]
-        self.logger.info(f'Greeting methods->{set(methods)}')
+        self.logger.info(f'{trace_id} Greeting methods->{set(methods)}')
 
         # accept only USERNAME/PASSWORD auth
         if 2 not in set(methods):
             # clone connection
-            self.logger.info(f'Client not support Username/Password method, terminate!')
+            self.logger.info(f'{trace_id} Client not support Username/Password method, terminate!')
             connection.close()
             return
 
         # send welcome message
         connection.sendall(bytes([SOCKS_VERSION, 2]))
-        self.logger.info(f'Server Greeting back to client')
+        self.logger.info(f'{trace_id} Server Greeting back to client')
 
         # verify Username/Password
         if not self.verify_credentials(connection):
-            self.logger.info(f'Credential verify failed')
+            self.logger.info(f'{trace_id} Credential verify failed')
             return
 
         # request (version = 5)
         version, cmd, _, address_type = connection.recv(4)
-        self.logger.info(f'Debug: address_type {address_type}')
+        self.logger.info(f'{trace_id} Debug: address_type {address_type}')
 
+        remote_address = None
         if address_type == 1:  # IPV4
             data = connection.recv(4)
             address = socket.inet_ntoa(data)
-            self.logger.info(f'IPV4 data to Target Address {data} -> {address}')
+            self.logger.info(f'{trace_id} IPV4 data to Target Address {data} -> {address}')
             # address = '142.250.69.206'
             # address = '108.177.125.139'
         elif address_type == 3:  # Domain name
             domain_length = connection.recv(1)[0]
             address = connection.recv(domain_length)
-            self.logger.info(f'Debug: {domain_length} -> {address}')
+            self.logger.info(f'{trace_id} Debug: {domain_length} -> {address}')
             if address == 'connectivitycheck.gstatic.com':
                 address = '108.177.125.139'
                 self.logger.info('connective check, set address to {address}')
             else:
                 address = socket.gethostbyname(address)
-                self.logger.info(f'DomainName to Target Address {address}')
+                self.logger.info(f'{trace_id} DomainName to Remote address {address}')
             # address = '108.177.125.139'
 
         # convert bytes to unsigned short array
         port = int.from_bytes(connection.recv(2), 'big', signed=False)
-        self.logger.info(f'Target Port {port}')
+        self.logger.info(f'{trace_id} Remote port {port}')
+        remote_address = f'{address}:{port}'
 
-        self.logger.info(f'CMD: {cmd}')
-        try:
+        proxy_server_address = None
+        self.logger.info(f'{trace_id} CMD: {cmd}')
+        try: 
             if cmd == 1:  # CONNECT
                 remote = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 remote.connect((address, port))
                 bind_address = remote.getsockname()
-                self.logger.info(f'Connected to {address} {port}')
+                self.logger.info(f'{trace_id} Connected to {address} {port}')
             else:
                 connection.close()
 
             addr = int.from_bytes(socket.inet_aton(bind_address[0]), 'big', signed=False)
             port = bind_address[1]
-            self.logger.info(f'Proxy Sock {bind_address[0]}:{port}')
+            self.logger.info(f'{trace_id} Proxy Sock {bind_address[0]}:{port}')
+            proxy_server_address = f'{bind_address[0]}:{port}'
 
             reply = b''.join([
                 SOCKS_VERSION.to_bytes(1, 'big'),
@@ -101,14 +101,16 @@ class Proxy:
 
         connection.sendall(reply)
 
+        self.logger.info(f'{trace_id} Tunnel established: {client_addr} <-> {proxy_server_address} <-> {remote_address}')
+
         # establish data exchange
-        self.logger.info(f'reply[1]: {reply[1]} cmd: {cmd}')
+        self.logger.info(f'{trace_id} reply[1]: {reply[1]} cmd: {cmd}')
         if reply[1] == 0 and cmd == 1:
-            self.exchange_loop(connection, remote)
+            self.exchange_loop(trace_id, connection, remote)
 
         remote.close()
         connection.close()
-        self.logger.info(f'connection closed {client_addr}')
+        self.logger.info(f'{trace_id} Connection closed {client_addr}')
 
     def verify_credentials(self, connection):
         version = ord(connection.recv(1))  # should be 1
@@ -141,45 +143,45 @@ class Proxy:
             int(0).to_bytes(4, 'big')
         ])
 
-    def exchange_loop(self, client, remote):
+    def exchange_loop(self, trace_id, client, remote):
         while True:
             # wait until client or remote is available for read
             r, w, e = select.select([client, remote], [], [])
             if e:
-                self.logger.info(f'Exceptions: {e}')
+                self.logger.info(f'{trace_id} Exceptions: {e}')
 
             if client in r:
                 try:
                     data = client.recv(4096)
-                    self.logger.info(f'Read {len(data)} bytes from client')
+                    self.logger.info(f'{trace_id} Read {len(data)} bytes from client')
                 except ConnectionResetError as ex:
-                    self.logger.error(f'Client connection reseted: {ex}')
+                    self.logger.error(f'{trace_id} Client connection reseted: {ex}')
                     break
 
                 try:
                     sent_size = remote.send(data)
-                    self.logger.info(f'Sent {sent_size} bytes to remote')
+                    self.logger.info(f'{trace_id} Sent {sent_size} bytes to remote')
                     if sent_size <= 0:
                         break
                 except ConnectionResetError as ex:
-                    self.logger.error(f'Remote connection reseted {ex}')
+                    self.logger.error(f'{trace_id} Remote connection reseted {ex}')
                     break
 
             if remote in r:
                 try:
                     data = remote.recv(4096)
-                    self.logger.info(f'Read {len(data)} bytes from remote')
+                    self.logger.info(f'{trace_id} Read {len(data)} bytes from remote')
                 except ConnectionResetError as ex:
-                    self.logger.error(f'Remote connection reseted {ex}')
+                    self.logger.error(f'{trace_id} Remote connection reseted {ex}')
                     break
 
                 try:
                     sent_size = client.send(data)
-                    self.logger.info(f'Sent {sent_size} bytes to client')
+                    self.logger.info(f'{trace_id} Sent {sent_size} bytes to client')
                     if sent_size <= 0:
                         break
                 except ConnectionResetError as ex:
-                    self.logger.error(f"Client connection reseted {ex}")
+                    self.logger.error(f"{trace_id} Client connection reseted {ex}")
                     break
 
     def run(self, host, port):
@@ -193,7 +195,7 @@ class Proxy:
         while True:
             conn, addr = s.accept()
             self.logger.info(f'* new connection from {addr}')
-            t = threading.Thread(target=self.handle_client, args=(conn, addr))
+            t = threading.Thread(target=self.handle_client, args=(conn, f'{addr[0]}:{addr[1]}'))
             t.start()
 
 
